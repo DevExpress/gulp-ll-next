@@ -2,6 +2,7 @@ var ll   = require('../');
 var gulp = require('gulp');
 
 ll
+    .install()
     .tasks('default', 'task2', 'task3')
     .onlyInDebug('task4');
 

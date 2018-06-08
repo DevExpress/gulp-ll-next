@@ -1,5 +1,4 @@
 var spawn       = require('child_process').spawn;
-var gulp        = require('gulp');
 var PluginError = require('plugin-error');
 var Promise     = require('pinkie-promise');
 
@@ -11,22 +10,21 @@ function getTaskListFromArgs (args) {
 }
 
 function GulpLL () {
-    this.taskFn = gulp.task.bind(gulp);
-
     this.llTasks          = [];
     this.llTasksDebugOnly = [];
     this.allTasks         = [];
 
-    this.isDebug  = typeof v8debug !== 'undefined' || process.argv.indexOf('--ll-debug') > -1;
-    this.isWorker = process.argv.indexOf('--ll-worker') > -1;
+    this.gulp          = null;
+    this.gulpFunctions = {};
+
+    this.isDebug      = typeof v8debug !== 'undefined' || process.argv.indexOf('--ll-debug') > -1;
+    this.isWorker     = process.argv.indexOf('--ll-worker') > -1;
+    this.isLLDisabled = process.argv.indexOf('--no-ll') > 0;
 
     this.args = process.argv.slice(1).filter(function (arg, idx) {
         // NOTE: remove debugger breakpoints from worker args
         return arg.indexOf('--debug-brk') < 0 && (idx !== 0 || arg !== 'debug');
     });
-
-    if (process.argv.indexOf('--no-ll') < 0)
-        this._overrideGulpTaskFn()
 }
 
 
@@ -99,24 +97,27 @@ GulpLL.prototype._getGulpTaskArgs = function (name, fn, { isNameExplicit }) {
     return gulpTaskArgs;
 };
 
-GulpLL.prototype._addTaskToGulp = function (name, fn, { isNameExplicit }) {
-    const ll = this;
-
-    ll.allTasks.push(name);
-    ll.taskFn(...ll._getGulpTaskArgs(name, fn, { isNameExplicit }));
+GulpLL.prototype._addTaskToGulp = function (gulpFunction, { name, fn, isNameExplicit }) {
+    this.allTasks.push(name);
+    this.gulpFunctions[gulpFunction].apply(this.gulp, this._getGulpTaskArgs(name, fn, { isNameExplicit }));
 };
 
-GulpLL.prototype._overrideGulpTaskFn = function () {
-    var ll = this;
+GulpLL.prototype._createGulpOverload = function (gulpFunction) {
+    if (!this.gulp[gulpFunction])
+        return;
 
-    gulp.task = function (...args) {
+    const ll = this;
+
+    ll.gulpFunctions[gulpFunction] = this.gulp[gulpFunction];
+
+    this.gulp[gulpFunction] = function (...args) {
         let { name, fn, isNameExplicit } = ll._getNameAndFn(args);
 
         if (ll._isLLTask(name)) {
             const workerTaskName = ll._getWorkerTaskName(name);
 
             if (ll.isWorker && ll.args.indexOf(workerTaskName) > -1)
-                ll._addTaskToGulp(workerTaskName, fn, { isNameExplicit });
+                ll._addTaskToGulp(gulpFunction, { name: workerTaskName, fn, isNameExplicit });
             else {
                 fn = function () {
                     return ll._createWorker(name);
@@ -124,8 +125,42 @@ GulpLL.prototype._overrideGulpTaskFn = function () {
             }
         }
 
-        ll._addTaskToGulp(name, fn, { isNameExplicit });
+        ll._addTaskToGulp(gulpFunction, { name, fn, isNameExplicit });
     };
+};
+
+GulpLL.prototype._overrideGulpFunctions = function () {
+    this._createGulpOverload('task');
+    this._createGulpOverload('step');
+};
+
+GulpLL.prototype.install = function (gulp) {
+    if (!gulp)
+        gulp = require('gulp');
+
+    this.gulp = gulp;
+
+    if (!this.isLLDisabled)
+        this._overrideGulpFunctions();
+
+    return this;
+};
+
+GulpLL.prototype.uninstall = function () {
+    this.llTasks          = [];
+    this.llTasksDebugOnly = [];
+    this.allTasks         = [];
+
+    Object.keys(this.gulpFunctions).forEach(gulpFunction => {
+        if (this.gulp[gulpFunction] === this.gulpFunctions[gulpFunction])
+            this.gulp[gulpFunction] = this.gulpFunctions[gulpFunction];
+
+        delete this.gulpFunctions[gulpFunction];
+    });
+
+    this.gulp = null;
+
+    return this;
 };
 
 GulpLL.prototype.tasks = function () {
