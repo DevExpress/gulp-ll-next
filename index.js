@@ -25,8 +25,8 @@ function isUnderV8Inspector () {
 }
 
 function areNodeDebuggingKeysSpecified () {
-    return process.argv[1] !== 'debug' ||
-        process.argv[1] !== 'inspect' ||
+    return process.argv[1] === 'debug' ||
+        process.argv[1] === 'inspect' ||
         process.argv.some(arg => arg.match(DEBUGGING_ARGS_RE)) ||
         process.argv.some(arg => arg.match(DEBUGGING_BREAKPOINTS_ARGS_RE));
 }
