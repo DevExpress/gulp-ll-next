@@ -12,8 +12,8 @@
 </p>
 
 <p align="center">
-  <a href="https://travis-ci.org/inikulin/gulp-ll"><img alt="Build Status" src="https://api.travis-ci.org/inikulin/gulp-ll.svg"></a>
-  <a href="https://www.npmjs.com/package/gulp-ll"><img alt="NPM Version" src="https://img.shields.io/npm/v/gulp-ll.svg"></a>
+  <a href="https://travis-ci.org/AndreyBelym/gulp-ll-next"><img alt="Build Status" src="https://api.travis-ci.org/AndreyBelym/gulp-ll-next.svg"></a>
+  <a href="https://www.npmjs.com/package/gulp-ll-next"><img alt="NPM Version" src="https://img.shields.io/npm/v/gulp-ll-next.svg"></a>
 </p>
 
 ## Install
@@ -61,7 +61,7 @@ tasks in the separate processes. But, you can force them to to do so only in the
 ```js
 ll
     // Always run in separate process
-    .tasks('lint');
+    .tasks('lint')
     // Run in separate process only in debug
     .onlyInDebug('compile-scripts', 'build-templates');
 ```
