@@ -2,11 +2,37 @@ var spawn       = require('child_process').spawn;
 var PluginError = require('plugin-error');
 var Promise     = require('pinkie-promise');
 
+
+const DEBUGGING_ARGS_RE             = /^--inspect|^--debug/;
+const DEBUGGING_BREAKPOINTS_ARGS_RE = /^--inspect-brk|^--debug-brk/;
+
 function getTaskListFromArgs (args) {
     if (Array.isArray(args[0]))
         return args[0];
 
     return Array.prototype.slice.call(args);
+}
+
+function isUnderV8Inspector () {
+    try {
+        const inspector = require('inspector');
+
+        return !!inspector.url();
+    }
+    catch (e) {
+        return false;
+    }
+}
+
+function areNodeDebuggingKeysSpecified () {
+    return process.argv[1] !== 'debug' ||
+        process.argv[1] !== 'inspect' ||
+        process.argv.some(arg => arg.match(DEBUGGING_ARGS_RE)) ||
+        process.argv.some(arg => arg.match(DEBUGGING_BREAKPOINTS_ARGS_RE));
+}
+
+function isUnderDebugger () {
+    return typeof v8debug !== 'undefined' || areNodeDebuggingKeysSpecified() || isUnderV8Inspector() || process.argv.indexOf('--ll-debug') > -1;
 }
 
 function GulpLL () {
@@ -17,13 +43,13 @@ function GulpLL () {
     this.gulp          = null;
     this.gulpFunctions = {};
 
-    this.isDebug      = typeof v8debug !== 'undefined' || process.argv.indexOf('--ll-debug') > -1;
+    this.isDebug      = isUnderDebugger();
     this.isWorker     = process.argv.indexOf('--ll-worker') > -1;
     this.isLLDisabled = process.argv.indexOf('--no-ll') > 0;
 
     this.args = process.argv.slice(1).filter(function (arg, idx) {
         // NOTE: remove debugger breakpoints from worker args
-        return arg.indexOf('--debug-brk') < 0 && (idx !== 0 || arg !== 'debug');
+        return !arg.match(DEBUGGING_BREAKPOINTS_ARGS_RE) && (idx !== 0 || (arg !== 'debug' && arg !== 'inspect'));
     });
 }
 
